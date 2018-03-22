@@ -18,28 +18,6 @@ Grafana is very easy to install and run using the offical docker container.
 $ docker run -d -p 3000:3000 grafana/grafana
 ```
 
-All Grafana configuration settings can be defined using environment
-variables, this is especially useful when using the above container.
-
-## Docker volumes & ENV config
-
-The Docker container exposes two volumes, the sqlite3 database in the
-folder `/var/lib/grafana` and configuration files is in `/etc/grafana/`
-folder. You can map these volumes to host folders when you start the
-container:
-
-```bash
-$ docker run -d -p 3000:3000 \
-    -v /var/lib/grafana:/var/lib/grafana \
-    -e "GF_SECURITY_ADMIN_PASSWORD=secret" \
-    grafana/grafana
-```
-
-In the above example I map the data folder and sets a configuration option via
-an `ENV` instruction. 
-
-See the [docker volumes documentation](https://docs.docker.com/engine/admin/volumes/volumes/) if you want to create a volume to use with the Grafana docker image instead of a bind mount (binding to a directory in the host system).
-
 ## Configuration
 
 All options defined in conf/grafana.ini can be overridden using environment
@@ -55,8 +33,6 @@ $ docker run \
   -e "GF_SECURITY_ADMIN_PASSWORD=secret" \
   grafana/grafana
 ```
-
-You can use your own grafana.ini file by using environment variable `GF_PATHS_CONFIG`.
 
 The back-end web server has a number of configuration options. Go to the
 [Configuration]({{< relref "configuration.md" >}}) page for details on all
@@ -75,6 +51,30 @@ docker run \
   grafana/grafana
 ```
 
+## Building a custom Grafana image with pre-installed plugins
+
+Dockerfile:
+```Dockerfile
+FROM grafana/grafana:5.0.0
+ENV GF_PATHS_PLUGINS=/opt/grafana-plugins
+RUN mkdir -p $GF_PATHS_PLUGINS
+RUN grafana-cli --pluginsDir $GF_PATHS_PLUGINS plugins install grafana-clock-panel
+```
+
+Add lines with `RUN grafana-cli ...` for each plugin you wish to install in your custom image. Don't forget to specify what version of Grafana you wish to build from (replace 5.0.0 in the example).
+
+Example of how to build and run:
+```bash
+docker build -t grafana:5.0.0-custom . 
+docker run \
+  -d \
+  -p 3000:3000 \
+  --name=grafana \
+  grafana:5.0.0-custom
+```
+
+// TODO: mention that GF?PARTHSPLUG is an official env vars
+
 ## Running a Specific Version of Grafana
 
 ```bash
@@ -83,7 +83,7 @@ $ docker run \
   -d \
   -p 3000:3000 \
   --name grafana \
-  grafana/grafana:5.0.2
+  grafana/grafana:5.0.3
 ```
 
 ## Configuring AWS Credentials for CloudWatch Support
@@ -108,3 +108,66 @@ Supported variables:
 - `GF_AWS_${profile}_ACCESS_KEY_ID`: AWS access key ID (required).
 - `GF_AWS_${profile}_SECRET_ACCESS_KEY`: AWS secret access  key (required).
 - `GF_AWS_${profile}_REGION`: AWS region (optional).
+
+## Grafana container with persistent storage (recommended)
+
+ // TODO: implicit vs explicit volumes
+
+```
+# create /var/lib/grafana as persistent volume storage
+docker run -d -v /var/lib/grafana --name grafana-storage busybox:latest
+
+# start grafana
+docker run \
+  -d \
+  -p 3000:3000 \
+  --name=grafana \
+  --volumes-from grafana-storage \
+  grafana/grafana
+```
+
+// TODO: how to map a config from your local filesystem
+// TODO: how to point to a different folder, is that really neccessary?
+// TODO: mention the different env vars that exists specific to the container (in run.sh)
+
+## Grafana container with host binding and running as a different user
+
+...
+
+
+
+## Migration from a previous version of the docker container to 5.1+
+
+In Grafana docker containers prior to 5.1 Grafana was run as the Grafana user (id = `104`). In 5.1 we switched over to the `nobody` user (id = `65534`) instead and also made it possible to change user more easily. Unfortunately this may cause issues when upgrading to 5.1 or later if you have files created by previous versions.
+
+There are two possible solutions to this problem. Either you start the new container as the root user and changes ownership from `104` to `65534` or you start the upgraded container as user `104`.
+
+Examples:
+
+### running docker as a different user
+
+`docker run --user 104 grafana/grafana:5.1`
+
+
+### docker-compose.yml
+
+```Dockerfile
+version: "2"
+
+services:
+  grafana:
+    image: grafana/grafana:5.1
+    ports:
+      - 3000:3000
+    user: "104"
+```
+
+### starting the container and changing ownership
+
+```bash
+$ docker run -ti --user root --entrypoint bash grafana/grafana:5.1
+$ chown -R root:root /etc/grafana && \
+  chmod -R a+r /etc/grafana && \
+  chown -R nobody:nogroup /var/lib/grafana && \
+  chown -R nobody:nogroup /usr/share/grafana
+```
