@@ -3,13 +3,13 @@ import moment from 'moment';
 import * as dateMath from './datemath';
 
 var spans = {
-  s: { display: 'second' },
-  m: { display: 'minute' },
-  h: { display: 'hour' },
-  d: { display: 'day' },
-  w: { display: 'week' },
-  M: { display: 'month' },
-  y: { display: 'year' },
+  s: { display: 'seconds' },
+  m: { display: 'minutes' },
+  h: { display: 'hours' },
+  d: { display: 'days' },
+  w: { display: 'weeks' },
+  M: { display: 'months' },
+  y: { display: 'years' },
 };
 
 var rangeOptions = [
